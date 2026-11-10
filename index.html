@@ -2282,6 +2282,8 @@ function doSearch(event) {
   if (event) event.preventDefault();
   const query = document.getElementById('search-input').value.trim();
   if (!query) { navigate('/'); return; }
+  // [GA4] search — 상단 검색창에서 검색 실행 (GA4 권장 이벤트, 빈 검색어는 제외)
+  trackEvent('search', { search_term: query, search_result_count: searchProducts(query).length });
   pendingScrollTo = 'section-all-products';
   navigate('/search/' + encodeURIComponent(query));
 }
