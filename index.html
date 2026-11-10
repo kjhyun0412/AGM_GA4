@@ -1139,6 +1139,16 @@ function toggleWishlist(productId, event) {
   } else {
     wishlist.push(productId);
     showToast('♥ 찜 목록에 추가했습니다');
+    // [GA4 텍소노미 #7] add_to_wishlist — 상품 상세 하트 버튼으로 찜에 담을 때만 (해제·카드 하트는 제외)
+    if (p && event && event.target && event.target.closest && event.target.closest('#btn-wishlist-detail')) {
+      trackEvent('add_to_wishlist', {
+        item_name: p.name,
+        click_location: 'product_detail',
+        value: p.price,
+        currency: 'KRW',
+        login_status: currentUser ? 'logged_in' : 'logged_out'
+      });
+    }
   }
   saveWishlist();
   updateWishlistCount();
