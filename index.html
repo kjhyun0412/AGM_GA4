@@ -1355,7 +1355,17 @@ function showPage(name) {
 
 function goHome()      { navigate('/'); }
 function openCart()    { navigate('/cart'); }
-function openWishlist(){ navigate('/wishlist'); }
+function openWishlist(){
+  // [GA4] go_to_wishlist — 상단(header) 하트 버튼 클릭
+  const pageType = document.body.getAttribute('data-page-type') || 'home';
+  trackEvent('go_to_wishlist', {
+    click_location: 'header',
+    page_type: pageType === 'product' ? 'product_detail' : pageType,
+    wishlist_count: wishlist.length,
+    login_status: currentUser ? 'logged_in' : 'logged_out'
+  });
+  navigate('/wishlist');
+}
 
 // ────────────────────────────────
 // PRODUCT GRID
