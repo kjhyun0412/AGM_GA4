@@ -1036,6 +1036,22 @@ function saveUser()      { currentUser ? localStorage.setItem('agm_user', JSON.s
 // TOAST
 // ────────────────────────────────
 let toastTimer = null;
+// ── GA4 이벤트 전송 공통 함수 (텍소노미 문서 기준) ──
+function trackEvent(name, params) {
+  try { gtag('event', name, params); } catch (e) { /* 추적 실패가 화면 동작을 막지 않도록 무시 */ }
+}
+// 상세 페이지에서 현재 선택된 제품/옵션/금액 정보
+function detailTrackParams(productId) {
+  const product = PRODUCTS.find(p => p.id === productId);
+  if (!product) return null;
+  const v = getVariant(product, selectedVariantId);
+  return { item_name: product.name, item_option: v.label, value: v.price * detailQty, currency: 'KRW' };
+}
+// 메인 특가/베스트 카드 클릭 (카드 data-section 사용)
+function trackItemClick(el) {
+  trackEvent('item_click', { item_name: el.dataset.productName, section: el.dataset.section });
+}
+
 function showToast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -1184,7 +1200,11 @@ function handlePromo(promoId) {
   if (promoId === 'signup-coupon') { currentUser ? showToast('이미 로그인되어 있습니다') : openSignupModal(); }
   else showToast('🚚 3만원 이상 주문 시 배송비가 무료입니다');
 }
-function handleEvent(eventId, category) { quickCategory(category); }
+function handleEvent(eventId, category) {
+  // [GA4 텍소노미 #1] promotion_click — 메인 '시원 할인 프로모션' 배너 클릭
+  if (eventId === 'summer-sale') trackEvent('promotion_click', { promotion_name: '시원 할인 프로모션' });
+  quickCategory(category);
+}
 function handleFooterLink(name) { showToast(name + ' — 데모 사이트에서는 제공되지 않습니다'); }
 
 // ────────────────────────────────
@@ -1552,7 +1572,7 @@ function renderHomeSections() {
   document.getElementById('today-deal-list').innerHTML = deals.map(p => {
     const rate = Math.round((1 - p.price / p.originalPrice) * 100);
     return `
-      <div class="deal-card" data-product-id="${p.id}" data-product-name="${p.name}" data-product-category="${p.category}" data-product-price="${p.price}" data-discount-rate="${rate}" onclick="showProductDetail('${p.id}')">
+      <div class="deal-card" data-product-id="${p.id}" data-product-name="${p.name}" data-product-category="${p.category}" data-product-price="${p.price}" data-discount-rate="${rate}" data-section="특가" onclick="trackItemClick(this);showProductDetail('${p.id}')">
         <span class="deal-flag">${rate}% OFF</span>
         <img src="${p.image}" alt="${p.name}" loading="lazy" onerror="this.onerror=null;this.src=FALLBACK_IMG">
         <div class="deal-body">
@@ -1569,7 +1589,7 @@ function renderHomeSections() {
   // 베스트: 리뷰수 상위 5개
   const best = [...PRODUCTS].sort((a,b) => b.reviewCount - a.reviewCount).slice(0, 5);
   document.getElementById('best-product-list').innerHTML = best.map((p, i) => `
-    <div class="best-card" data-product-id="${p.id}" data-product-name="${p.name}" data-product-category="${p.category}" data-product-price="${p.price}" data-rank="${i+1}" onclick="showProductDetail('${p.id}')">
+    <div class="best-card" data-product-id="${p.id}" data-product-name="${p.name}" data-product-category="${p.category}" data-product-price="${p.price}" data-rank="${i+1}" data-section="베스트" onclick="trackItemClick(this);showProductDetail('${p.id}')">
       <span class="best-rank">${i+1}</span>
       <img src="${p.image}" alt="${p.name}" loading="lazy" onerror="this.onerror=null;this.src=FALLBACK_IMG">
       <div class="best-body">
@@ -1592,6 +1612,24 @@ function renderHomeSections() {
         <span class="product-price">${p.price.toLocaleString()}원</span>
       </div>
     </div>`).join('');
+
+  observeItemViews();
+}
+
+// ── [GA4 텍소노미 #2] item_view — 메인 특가/베스트 제품이 화면에 노출될 때 (카드당 1회) ──
+let itemViewObserver = null;
+function observeItemViews() {
+  if (!('IntersectionObserver' in window)) return;
+  if (!itemViewObserver) {
+    itemViewObserver = new IntersectionObserver(entries => {
+      entries.forEach(en => {
+        if (!en.isIntersecting) return;
+        itemViewObserver.unobserve(en.target);
+        trackEvent('item_view', { item_name: en.target.dataset.productName, section: en.target.dataset.section });
+      });
+    }, { threshold: 0.5 });
+  }
+  document.querySelectorAll('.deal-card[data-section], .best-card[data-section]').forEach(el => itemViewObserver.observe(el));
 }
 
 // ── 특가 카운트다운 (자정 마감) ──
@@ -1816,6 +1854,9 @@ function switchDetailTab(tab, btn) {
 }
 
 function buyNow(productId) {
+  // [GA4 텍소노미 #5] purchase — 상품 상세 '구매' 버튼 클릭
+  const tp = detailTrackParams(productId);
+  if (tp) trackEvent('purchase', tp);
   addToCart(productId, detailQty, true, selectedVariantId);
   goCheckout();
 }
@@ -1864,6 +1905,9 @@ function syncDetailPrice() {
 }
 
 function addToCartFromDetail(productId) {
+  // [GA4 텍소노미 #4] add_to_cart — 상품 상세 '장바구니 담기' 클릭
+  const tp = detailTrackParams(productId);
+  if (tp) trackEvent('add_to_cart', tp);
   addToCart(productId, detailQty, false, selectedVariantId);
 }
 
